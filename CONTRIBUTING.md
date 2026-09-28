@@ -38,6 +38,25 @@ Available targets:
 - `bin/code-marketplace-windows-amd64`
 - `bin/code-marketplace-windows-arm64`
 
+### Downloading binaries from GitHub Actions
+
+Every push to `Support_BASE_URL` triggers the `build` workflow, which runs
+`make build` for all six platforms listed above without Docker. After a
+successful run, open **Actions → build → the run → Artifacts** and download
+`code-marketplace-<commit SHA>`. The archive includes the binaries and a SHA256
+checksum file and is retained for 30 days.
+
+After extracting the archive on Linux, verify and enable the binary with:
+
+```console
+sha256sum -c code-marketplace_Support_BASE_URL_checksums.txt
+chmod +x code-marketplace-linux-amd64
+```
+
+Use `code-marketplace-linux-arm64` on ARM64 hosts. Branch builds upload artifacts;
+tag builds also create a draft GitHub release. The workflow can also be run
+manually using `workflow_dispatch` when available in the Actions UI.
+
 ### Running locally
 
 ```console

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Build binaries and upload GitHub Actions artifacts on pushes to
+  `Support_BASE_URL`.
 - Support hosting under a URL path prefix using `BASE_URL` or `--base-url`,
   including extension asset URLs and download redirects.
 - Document binary deployment with `.env` and add a Traefik file provider route
