@@ -84,13 +84,142 @@ curl 'https://example.com/api/extensionquery' -H 'Accept: application/json;api-v
 "https://example.com/assets/vscodevim/vim/1.24.1"
 ```
 
-The marketplace does not support being hosted behind a base path; it must be
-proxied at the root of your domain.
+### Hosting under /marketplace with Traefik
+
+Set `BASE_URL=/marketplace` to serve all endpoints under that path. The
+`--base-url` flag overrides the environment variable. An unset or empty value
+(or `/`) keeps the default root deployment. This setting is a URL path, not a
+full URL. Asset URLs and download redirects include the configured prefix.
+
+This deployment runs both marketplace and Traefik as binaries. The following
+example assumes they run on the same Linux host, with an existing Traefik HTTPS
+entrypoint named `websecure` and certificates configured for your domain.
+
+#### Build and start the marketplace binary
+
+Install Go 1.25.8 or later and GNU Make, then build from the project root:
+
+```console
+make bin/code-marketplace-linux-amd64
+```
+
+For Linux ARM64, use `make bin/code-marketplace-linux-arm64` instead. The
+executable is written to `bin/`. See [CONTRIBUTING.md](CONTRIBUTING.md#building-from-source)
+for other platforms. Build on a machine with access to the Go dependencies
+(or your company's Go module proxy/cache), then copy the binary to the
+deployment host if needed. The deployment host does not need Go or Docker.
+
+In the directory where you will run the binary, create `.env` from
+[.env.example](.env.example):
+
+```dotenv
+BASE_URL=/marketplace
+```
+
+From the project root, start the compiled binary as follows. If you copied it
+to another host, adjust the executable path accordingly:
+
+```sh
+mkdir -p extensions
+(
+  set -a
+  . ./.env
+  set +a
+  exec ./bin/code-marketplace-linux-amd64 server \
+    --address 127.0.0.1:3001 \
+    --extensions-dir ./extensions
+)
+```
+
+The shell loads your trusted `.env` into the marketplace process environment;
+the binary itself does not parse dotenv files. If using systemd, configure
+`EnvironmentFile=/absolute/path/to/.env` in the service's `[Service]` section
+and use absolute binary and extension directory paths in `ExecStart`.
+Reload the environment and restart the marketplace after changing `.env`.
+
+#### Configure the Traefik binary
+
+Use [examples/traefik/marketplace.yaml](examples/traefik/marketplace.yaml) as
+the dynamic route configuration. Change `marketplace.example.com` and
+`websecure` to your domain and existing HTTPS entrypoint. Its core routing
+configuration is:
+
+```yaml
+http:
+  routers:
+    marketplace:
+      rule: "Host(`marketplace.example.com`) && (Path(`/marketplace`) || PathPrefix(`/marketplace/`))"
+      entryPoints:
+        - websecure
+      service: marketplace
+      tls: {}
+  services:
+    marketplace:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:3001"
+```
+
+Place this file in your existing Traefik file provider directory. If you use
+a single dynamic configuration file instead, merge the router and service
+into that file's existing `http.routers` and `http.services` sections.
+
+If the file provider is not enabled, add it to your existing Traefik static
+configuration and restart Traefik:
+
+```yaml
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+```
+
+In this example, copy the route file to
+`/etc/traefik/dynamic/marketplace.yaml`. Merge this static configuration with
+your existing settings; retain your entrypoint and TLS certificate setup.
+For a Traefik process configured through CLI flags, the equivalent options are
+`--providers.file.directory=/etc/traefik/dynamic --providers.file.watch=true`.
+See the [Traefik file provider documentation](https://doc.traefik.io/traefik/reference/routing-configuration/other-providers/file/).
+
+Traefik forwards the full path, such as `/marketplace/api/extensionquery`.
+Do **not** attach a `StripPrefix` middleware or append `/marketplace` to the
+backend server URL: the marketplace handles the prefix. Traefik does not read
+the marketplace's `.env`; if you change `BASE_URL`, also update the route's
+`Path` and `PathPrefix` values.
+
+If the two binaries run on different hosts, replace `127.0.0.1` in the
+backend URL with the marketplace host's reachable address and bind marketplace
+to that host's private interface using `--address <private-ip>:3001`.
+
+#### Configure the editor and verify
+
+Configure code-server with the same public prefix:
+
+```console
+export EXTENSIONS_GALLERY='{"serviceUrl":"https://marketplace.example.com/marketplace/api","itemUrl":"https://marketplace.example.com/marketplace/item","resourceUrlTemplate":"https://marketplace.example.com/marketplace/files/{publisher}/{name}/{version}/{path}"}'
+code-server
+```
+
+For VSCodium, use `https://marketplace.example.com/marketplace/api` as
+`VSCODE_GALLERY_SERVICE_URL` and `https://marketplace.example.com/marketplace/item`
+as `VSCODE_GALLERY_ITEM_URL`.
+
+Verify the deployment with:
+
+```console
+curl https://marketplace.example.com/marketplace/healthz
+curl https://marketplace.example.com/marketplace/api/extensionquery -H 'Content-Type: application/json' --data '{"filters":[{"criteria":[{"filterType":8,"value":"Microsoft.VisualStudio.Code"}],"pageSize":1}],"flags":439}' | jq '.results[0].extensions[0].versions[0].assetUri'
+```
+
+The second command requires at least one installed extension; its asset URI
+should begin with `https://marketplace.example.com/marketplace/assets/`.
+For a direct check on the marketplace host, use
+`curl http://127.0.0.1:3001/marketplace/healthz`.
 
 ### Health checks
 
 The `/healthz` endpoint can be used to determine if the marketplace is ready to
-receive requests.
+receive requests. With `BASE_URL=/marketplace`, use `/marketplace/healthz`.
 
 ## Adding extensions
 

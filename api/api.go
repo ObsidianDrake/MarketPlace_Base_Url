@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -55,6 +56,8 @@ type ResultMetadataItem struct {
 }
 
 type Options struct {
+	// BasePath is the URL path prefix, for example "/marketplace".
+	BasePath string
 	Database database.Database
 	Logger   slog.Logger
 	// Set to <0 to disable.
@@ -64,6 +67,7 @@ type Options struct {
 }
 
 type API struct {
+	BasePath    string
 	Database    database.Database
 	Handler     http.Handler
 	Logger      slog.Logger
@@ -93,6 +97,7 @@ func New(options *Options) *API {
 	)
 
 	api := &API{
+		BasePath:    strings.TrimRight(options.BasePath, "/"),
 		Database:    options.Database,
 		Handler:     r,
 		Logger:      options.Logger,
@@ -148,6 +153,21 @@ func New(options *Options) *API {
 		httpapi.WriteBytes(rw, http.StatusOK, []byte("Extension stats are not supported"))
 	})
 
+	if api.BasePath != "" {
+		// Strip only complete path segments before dispatching to the existing router.
+		handler := http.StripPrefix(api.BasePath, r)
+		api.Handler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if req.URL.Path == api.BasePath {
+				http.Redirect(w, req, api.BasePath+"/", http.StatusPermanentRedirect)
+				return
+			}
+			if !strings.HasPrefix(req.URL.Path, api.BasePath+"/") {
+				http.NotFound(w, req)
+				return
+			}
+			handler.ServeHTTP(w, req)
+		})
+	}
 	return api
 }
 
@@ -190,7 +210,7 @@ func (api *API) extensionQuery(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	baseURL := httpapi.RequestBaseURL(r, "/")
+	baseURL := httpapi.RequestBaseURL(r, api.BasePath)
 
 	// Each filter gets its own entry in the results.
 	results := []QueryResult{}
@@ -226,7 +246,7 @@ func (api *API) extensionQuery(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) assetRedirect(rw http.ResponseWriter, r *http.Request) {
-	baseURL := httpapi.RequestBaseURL(r, "/")
+	baseURL := httpapi.RequestBaseURL(r, api.BasePath)
 	assetType := storage.AssetType(chi.URLParam(r, "type"))
 	if assetType == "vspackage" {
 		assetType = storage.VSIXAssetType
@@ -261,7 +281,7 @@ func (api *API) assetRedirect(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) latestExtension(rw http.ResponseWriter, r *http.Request) {
-	baseURL := httpapi.RequestBaseURL(r, "/")
+	baseURL := httpapi.RequestBaseURL(r, api.BasePath)
 	filter := database.Filter{
 		Criteria: []database.Criteria{
 			{

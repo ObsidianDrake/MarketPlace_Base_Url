@@ -5,7 +5,9 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"os"
 	"os/signal"
+	"path"
 	"strings"
 	"time"
 
@@ -66,6 +68,7 @@ func cmdLogger(cmd *cobra.Command) slog.Logger {
 
 func server() *cobra.Command {
 	var (
+		baseURL     string
 		address     string
 		maxpagesize int
 	)
@@ -79,6 +82,15 @@ func server() *cobra.Command {
 			"  marketplace server --artifactory http://artifactory.server/artifactory --repo extensions",
 		}, "\n"),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Read at execution time so environment configuration is honored.
+			if !cmd.Flags().Changed("base-url") {
+				baseURL = os.Getenv("BASE_URL")
+			}
+			var err error
+			baseURL, err = normalizeBaseURL(baseURL)
+			if err != nil {
+				return err
+			}
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
 			logger := opts.Logger
@@ -112,6 +124,7 @@ func server() *cobra.Command {
 
 			// Start the API server.
 			mapi := api.New(&api.Options{
+				BasePath:    baseURL,
 				Database:    database,
 				Storage:     store,
 				Logger:      logger,
@@ -163,9 +176,22 @@ func server() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVar(&baseURL, "base-url", "", "URL path prefix (e.g. /marketplace); defaults to BASE_URL.")
 	cmd.Flags().IntVar(&maxpagesize, "max-page-size", api.MaxPageSizeDefault, "The maximum number of pages to request")
 	cmd.Flags().StringVar(&address, "address", "127.0.0.1:3001", "The address on which to serve the marketplace API.")
 	addFlags(cmd)
 
 	return cmd
+}
+
+// normalizeBaseURL accepts a path prefix, never a full URL or a route pattern.
+func normalizeBaseURL(value string) (string, error) {
+	if value == "" || value == "/" {
+		return "", nil
+	}
+	value = strings.TrimRight(value, "/")
+	if !strings.HasPrefix(value, "/") || strings.ContainsAny(value, "?#%\\{}*") || strings.ContainsAny(value, " \t\r\n") || path.Clean(value) != value {
+		return "", xerrors.New("BASE_URL / --base-url must be an absolute URL path such as /marketplace")
+	}
+	return value, nil
 }

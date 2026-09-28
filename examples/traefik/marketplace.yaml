@@ -1,0 +1,18 @@
+# Dynamic configuration for Traefik's file provider.
+# Change the domain and entrypoint to match your existing Traefik configuration.
+# Keep the path prefix in sync with BASE_URL in the marketplace's .env.
+http:
+  routers:
+    marketplace:
+      rule: "Host(`marketplace.example.com`) && (Path(`/marketplace`) || PathPrefix(`/marketplace/`))"
+      entryPoints:
+        - websecure
+      service: marketplace
+      tls: {}
+  services:
+    marketplace:
+      loadBalancer:
+        servers:
+          # Assumes Traefik and marketplace run on the same host.
+          # Forward the full request path; do not append /marketplace here.
+          - url: "http://127.0.0.1:3001"

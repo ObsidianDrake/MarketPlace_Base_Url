@@ -4,7 +4,7 @@
 
 ### Requirements
 
-- Go 1.21 or later
+- Go 1.25.8 or later
 - GNU Make
 
 ### Building from source
@@ -20,6 +20,15 @@ Build a specific platform:
 ```console
 make bin/code-marketplace-linux-amd64
 ```
+
+The resulting executable is `bin/code-marketplace-linux-amd64`. Building and
+running it does not require Docker. For a Linux ARM64 host, use
+`make bin/code-marketplace-linux-arm64` instead. Go dependencies must be
+available through your Go module cache or an accessible module proxy during
+the build; they are not downloaded by the resulting binary at runtime.
+
+For deployment with a `.env` file and a Traefik binary, see
+[Hosting under /marketplace with Traefik](README.md#hosting-under-marketplace-with-traefik).
 
 Available targets:
 - `bin/code-marketplace-darwin-amd64`

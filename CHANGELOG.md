@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Support hosting under a URL path prefix using `BASE_URL` or `--base-url`,
+  including extension asset URLs and download redirects.
+- Document binary deployment with `.env` and add a Traefik file provider route
+  example.
+
 ## [2.4.2](https://github.com/coder/code-server/releases/tag/v2.4.2) - 2026-04-02
 
 ### Security
