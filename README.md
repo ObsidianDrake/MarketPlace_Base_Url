@@ -97,7 +97,7 @@ entrypoint named `websecure` and certificates configured for your domain.
 
 #### Build and start the marketplace binary
 
-Install Go 1.25.8 or later and GNU Make, then build from the project root:
+Install Go 1.26.0 or later and GNU Make, then build from the project root:
 
 ```console
 make bin/code-marketplace-linux-amd64

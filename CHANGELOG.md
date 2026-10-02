@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Upgrade `golang.org/x/crypto` to `v0.57.0` and its required transitive
+  dependencies for builds using the corporate Go module proxy. Building from
+  source now requires Go 1.26.0 or later.
+
 ### Added
 
 - Build binaries and upload GitHub Actions artifacts on pushes to

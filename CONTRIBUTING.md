@@ -4,7 +4,7 @@
 
 ### Requirements
 
-- Go 1.25.8 or later
+- Go 1.26.0 or later
 - GNU Make
 
 ### Building from source
